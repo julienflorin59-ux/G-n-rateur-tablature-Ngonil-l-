@@ -3,9 +3,9 @@ import { NoteConfig, SongPreset, ScalePreset, Tuning } from './types';
 // =================================================================================
 // 🔗 CONFIGURATION DES RESSOURCES
 // =================================================================================
-// On utilise un chemin relatif (local) au lieu de GitHub.
-// Assurez-vous d'avoir un dossier "samples" dans votre dossier "public" contenant les MP3.
-export const ASSETS_BASE_URL = "/"; 
+// Configuration pour l'éditeur en ligne : on va chercher les sons sur votre nouveau dépôt GitHub.
+// Cela permet d'avoir du son ici même sans héberger les fichiers localement.
+export const ASSETS_BASE_URL = "https://raw.githubusercontent.com/julienflorin59-ux/G-n-rateur-tablature-Ngonil-l-/main/"; 
 
 // Standard Note Colors (User requirement: Fixed color per note)
 export const NOTE_COLORS: Record<string, string> = {
