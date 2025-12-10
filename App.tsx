@@ -1115,7 +1115,7 @@ export default function App() {
           for (let i = event.resultIndex; i < event.results.length; ++i) {
              const result = event.results[i];
              if (result.isFinal) {
-                  let text = result[0].transcript.toUpperCase().trim();
+                  let text: string = result[0].transcript.toUpperCase().trim();
                   
                   // 0. CLEANING / NORMALIZATION (PRE-PROCESSING)
                   
@@ -1154,7 +1154,7 @@ export default function App() {
                   // 1. TOKENIZING
                   const tokens = text.split(" ");
 
-                  tokens.forEach(t => {
+                  tokens.forEach((t: string) => {
                       // 2. Full Note Detection: 1G, 6D... (Already combined by regex)
                       const sMatch = t.match(/^([1-6][GD]|[GD][1-6])$/);
                       if (sMatch) {

@@ -1,4 +1,5 @@
 
+
 import React, { useRef, useEffect, forwardRef, useImperativeHandle, useState } from 'react';
 import { ParsedNote, Tuning, PlaybackState, TICKS_COUNT_IN } from '../types';
 import { STRING_CONFIGS, NOTE_COLORS } from '../constants';
@@ -127,8 +128,10 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
         clientY = e.changedTouches[0].clientY;
     } else if ('touches' in e) {
         // TouchEvent fallback
-        clientX = e.touches[0].clientX;
-        clientY = e.touches[0].clientY;
+        // Fix TS error: Safe cast since we checked 'touches' in e
+        const touchEvent = e as any;
+        clientX = touchEvent.touches[0].clientX;
+        clientY = touchEvent.touches[0].clientY;
     } else {
         // MouseEvent
         clientX = (e as MouseEvent).clientX;
