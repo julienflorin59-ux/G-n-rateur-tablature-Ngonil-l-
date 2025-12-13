@@ -147,7 +147,8 @@ class AudioEngine {
 
   public async loadSamples() {
      if (!this.ctx) return;
-     const uniqueNotes = Array.from(new Set(Object.values(this.currentTuning)));
+     // FIX: Explicitly cast values to string[] to avoid 'unknown' type error in build
+     const uniqueNotes = Array.from(new Set(Object.values(this.currentTuning) as string[]));
      
      const loadPromises = uniqueNotes.map(async (note) => {
         if (this.stringBuffers[note]) return;

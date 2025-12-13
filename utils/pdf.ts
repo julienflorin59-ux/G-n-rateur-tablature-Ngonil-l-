@@ -1,7 +1,8 @@
+
 import { jsPDF } from "jspdf";
 import { parseTablature } from "./parser";
 import { STRING_CONFIGS, NOTE_COLORS } from "../constants";
-import { ParsedNote, TICKS_QUARTER } from "../types";
+import { ParsedNote, TICKS_QUARTER, NoteConfig } from "../types";
 
 // Configuration de la mise en page PDF
 const PAGE_WIDTH = 210; // A4 width mm
@@ -52,7 +53,7 @@ export const generatePDF = (code: string, title: string = "Tablature Ngonilélé
         // Dessiner les en-têtes de cordes (Cercles colorés)
         const headerY = cursorY;
         
-        STRING_CONFIGS.forEach(s => {
+        STRING_CONFIGS.forEach((s: NoteConfig) => {
             const direction = s.hand === 'G' ? -1 : 1;
             const x = CENTER_X + (direction * s.index * STRING_SPACING);
             const color = hexToRgb(NOTE_COLORS[s.note.charAt(0)] || '#999999');
@@ -110,7 +111,7 @@ export const generatePDF = (code: string, title: string = "Tablature Ngonilélé
     // Fonction helper pour tracer les lignes verticales (Cordes)
     const drawVerticalStrings = (y1: number, y2: number) => {
         doc.setLineWidth(0.4);
-        STRING_CONFIGS.forEach(s => {
+        STRING_CONFIGS.forEach((s: NoteConfig) => {
             const direction = s.hand === 'G' ? -1 : 1;
             const x = CENTER_X + (direction * s.index * STRING_SPACING);
             const color = hexToRgb(NOTE_COLORS[s.note.charAt(0)] || '#999');
@@ -192,7 +193,8 @@ export const generatePDF = (code: string, title: string = "Tablature Ngonilélé
                 return;
             }
 
-            const conf = STRING_CONFIGS.find(s => s.stringId === n.stringId);
+            // FIX: Explicit typing for s
+            const conf = STRING_CONFIGS.find((s: NoteConfig) => s.stringId === n.stringId);
             if (conf) {
                 const direction = conf.hand === 'G' ? -1 : 1;
                 const x = CENTER_X + (direction * conf.index * STRING_SPACING);

@@ -1877,7 +1877,7 @@ export default function App() {
 
             {/* LIST */}
             <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
-                <h3 className="text-xs font-black text-[#8d6e63] uppercase tracking-wider mb-2 px-2 mt-2 flex justify-between items-center">
+                <h3 className="text-xs font-black text-[#8d6e63] uppercase tracking-wider mb-2 p-2 mt-2 flex justify-between items-center bg-[#e5c4a1]/50 rounded-lg border border-[#cbb094] backdrop-blur-[2px]">
                     <span>{bankTab === 'song' ? 'Chansons' : bankTab === 'exercise' ? 'Exercices' : 'Mes Créations'}</span>
                     <span className="bg-[#cbb094] text-[#5d4037] px-1.5 py-0.5 rounded text-[10px]">{filteredPresets.length}</span>
                 </h3>
@@ -1887,10 +1887,10 @@ export default function App() {
                         <button 
                             key={preset.name}
                             onClick={() => { setSelectedPresetName(preset.name); handleLoadSelectedPreset(); }} 
-                            className={`w-full text-left px-3 py-2.5 rounded-lg transition-all border border-transparent group relative
+                            className={`w-full text-left px-3 py-2.5 rounded-lg transition-all border group relative
                             ${selectedPresetName === preset.name 
-                                ? 'bg-[#e5c4a1] border-[#cbb094] shadow-sm' 
-                                : 'hover:bg-[#e5c4a1]/50 hover:border-[#cbb094]/30'}
+                                ? 'bg-[#e5c4a1]/50 backdrop-blur-[2px] border-[#cbb094] shadow-sm' 
+                                : 'border-transparent hover:bg-[#e5c4a1]/50 hover:border-[#cbb094]/30'}
                             `}
                         >
                             <div className="flex items-center justify-between">

@@ -1,6 +1,6 @@
 
 import React, { useRef, useEffect, forwardRef, useImperativeHandle, useState } from 'react';
-import { ParsedNote, Tuning, PlaybackState, TICKS_COUNT_IN } from '../types';
+import { ParsedNote, Tuning, PlaybackState, TICKS_COUNT_IN, NoteConfig } from '../types';
 import { STRING_CONFIGS, NOTE_COLORS } from '../constants';
 import { audioEngine } from '../utils/audio';
 
@@ -147,7 +147,8 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
   const getNotePosition = (note: ParsedNote, width: number, scrollTop: number) => {
       const centerX = width / 2;
       const spacing = getResponsiveSpacing(width);
-      const conf = STRING_CONFIGS.find(s => s.stringId === note.stringId);
+      // FIX: Explicitly type 's' to avoid implicit any error
+      const conf = STRING_CONFIGS.find((s: NoteConfig) => s.stringId === note.stringId);
       if (!conf) return null;
       const direction = conf.hand === 'G' ? -1 : 1;
       const x = centerX + (direction * conf.index * spacing);
@@ -196,7 +197,8 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
      let closestString = STRING_CONFIGS[0];
      let minDist = Infinity;
 
-     STRING_CONFIGS.forEach(s => {
+     // FIX: Explicitly type 's'
+     STRING_CONFIGS.forEach((s: NoteConfig) => {
          const direction = s.hand === 'G' ? -1 : 1;
          const sx = centerX + (direction * s.index * spacing);
          const dist = Math.abs(x - sx);
@@ -705,7 +707,8 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
       }
 
       // 4. Strings
-      STRING_CONFIGS.forEach(s => {
+      // FIX: Explicit typing for s to avoid implicit any
+      STRING_CONFIGS.forEach((s: NoteConfig) => {
           const direction = s.hand === 'G' ? -1 : 1;
           const x = centerX + (direction * s.index * STRING_SPACING);
           const currentNote = tuning[s.stringId] || s.note;
@@ -777,7 +780,8 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
               isBeingDragged = true;
           }
 
-          const conf = STRING_CONFIGS.find(s => s.stringId === displayStringId);
+          // FIX: Explicit type for s
+          const conf = STRING_CONFIGS.find((s: NoteConfig) => s.stringId === displayStringId);
           if (!conf) return;
           const direction = conf.hand === 'G' ? -1 : 1;
           const x = centerX + (direction * conf.index * STRING_SPACING);
@@ -785,7 +789,7 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
           const y = CANVAS_PADDING_TOP + ((displayTick - baseTickOffset) * TICK_HEIGHT) - scrollY;
 
           if (isBeingDragged) {
-               const origConf = STRING_CONFIGS.find(s => s.stringId === note.stringId);
+               const origConf = STRING_CONFIGS.find((s: NoteConfig) => s.stringId === note.stringId);
                if(origConf) {
                    const ox = centerX + ((origConf.hand === 'G' ? -1 : 1) * origConf.index * STRING_SPACING);
                    const oy = CANVAS_PADDING_TOP + ((note.tick - baseTickOffset) * TICK_HEIGHT) - scrollY;
