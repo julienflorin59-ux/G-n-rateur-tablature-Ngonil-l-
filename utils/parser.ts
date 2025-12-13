@@ -1,3 +1,4 @@
+
 import { ParsedNote, TICKS_QUARTER, TICKS_EIGHTH, TICKS_TRIPLET, TICKS_SIXTEENTH } from '../types';
 
 const SYMBOLS_DURATION: Record<string, number> = {

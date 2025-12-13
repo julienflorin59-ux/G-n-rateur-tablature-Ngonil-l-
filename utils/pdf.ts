@@ -12,7 +12,6 @@ const MARGIN_BOTTOM = 20;
 const CENTER_X = PAGE_WIDTH / 2;
 
 // Configuration de l'échelle Visuelle (doit matcher le Visualizer)
-// Le Visualizer utilise width / 14 pour l'espacement. Sur A4 (210mm), disons width utilisable ~180mm.
 const VISUAL_WIDTH_MM = 160; 
 const STRING_SPACING = VISUAL_WIDTH_MM / 14; 
 const TICK_SCALE = 1.5; // Hauteur par tick (mm)
@@ -53,6 +52,7 @@ export const generatePDF = (code: string, title: string = "Tablature Ngonilélé
         // Dessiner les en-têtes de cordes (Cercles colorés)
         const headerY = cursorY;
         
+        // Explicit type for 's'
         STRING_CONFIGS.forEach((s: NoteConfig) => {
             const direction = s.hand === 'G' ? -1 : 1;
             const x = CENTER_X + (direction * s.index * STRING_SPACING);
@@ -193,7 +193,7 @@ export const generatePDF = (code: string, title: string = "Tablature Ngonilélé
                 return;
             }
 
-            // FIX: Explicit typing for s
+            // Explicit type for 's'
             const conf = STRING_CONFIGS.find((s: NoteConfig) => s.stringId === n.stringId);
             if (conf) {
                 const direction = conf.hand === 'G' ? -1 : 1;

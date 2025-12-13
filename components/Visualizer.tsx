@@ -10,17 +10,17 @@ interface VisualizerProps {
   tuning: Tuning;
   rhythmMode: 'binary' | 'ternary';
   playbackState: PlaybackState;
-  isExporting?: boolean; // New prop to signal export mode
+  isExporting?: boolean;
   onNoteClick?: (note: ParsedNote, x: number, y: number) => void;
   onNoteDrag?: (note: ParsedNote, newStringId: string, newTick: number) => void;
   onNoteHover?: (note: ParsedNote | null, x: number, y: number) => void;
   selectedNoteId?: string | null;
-  selectedNoteIds?: string[]; // New: For multi-selection
+  selectedNoteIds?: string[];
   onBackgroundClick?: (tick: number, stringId: string | undefined, x: number, y: number) => void;
   onDeleteNote?: (note: ParsedNote) => void;
   onSeek?: (tick: number) => void;
   onNoteContextMenu?: (note: ParsedNote, x: number, y: number) => void;
-  onMultiSelectionEnd?: (selectedIds: string[], x: number, y: number) => void; // New callback
+  onMultiSelectionEnd?: (selectedIds: string[], x: number, y: number) => void;
 }
 
 export interface VisualizerHandle {
@@ -28,13 +28,10 @@ export interface VisualizerHandle {
   scrollToBottom: () => void;
 }
 
-// Dimensions and constants
 const NOTE_RADIUS = 7;
 const HIT_RADIUS = 15;
 const TICK_HEIGHT = 8;
-// Reduced padding to minimize gap below StringPad buttons (Previously 80)
 const CANVAS_PADDING_TOP = 10; 
-// Offset du curseur pendant la lecture pour ne pas coller aux pads (1 temps = 12 ticks)
 const PLAYHEAD_OFFSET_TICKS = 12;
 
 const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({ 
@@ -45,12 +42,11 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
-  // Interaction State
   const interactionRef = useRef<{
     mode: 'IDLE' | 'DRAG_NOTE' | 'POTENTIAL_LEFT_BG' | 'POTENTIAL_RIGHT_BG' | 'BOX_SELECT';
     startX: number;
     startY: number;
-    startScrollTop: number; // For absolute positioning during scroll
+    startScrollTop: number;
     currentX: number;
     currentY: number;
     activeNote: ParsedNote | null;
@@ -64,17 +60,15 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
     selectionRect: null
   });
 
-  const hoveredTickRef = useRef<number | null>(null); // For dragging notes
-  const hoveredGridTickRef = useRef<number | null>(null); // For general mouse hover on grid
+  const hoveredTickRef = useRef<number | null>(null);
+  const hoveredGridTickRef = useRef<number | null>(null);
   
-  // Auto-Scroll Refs
   const autoScrollSpeedRef = useRef(0);
   const lastFrameTimeRef = useRef(0);
   const autoScrollReqRef = useRef<number | null>(null);
 
-  // Local state for immediate visual feedback of multi-selection during drag
   const [dragSelectedIds, setDragSelectedIds] = useState<string[]>([]);
-  const dragSelectedIdsRef = useRef<string[]>([]); // Ref to avoid stale closure in global event listeners
+  const dragSelectedIdsRef = useRef<string[]>([]);
 
   useImperativeHandle(ref, () => ({
     getCanvasStream: () => {
@@ -88,51 +82,34 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
     }
   }));
 
-  // Helper to determine if we are in "Playback/Export Mode" (Show Count-In) or "Edit Mode" (Hide Count-In)
   const isPlayingOrExporting = playbackState === PlaybackState.PLAYING || isExporting;
-  
-  // OFFSET CALCULATION:
-  // If editing (Stopped), we shift everything UP by TICKS_COUNT_IN so Measure 1 (Tick 24) is at the top.
-  // If playing, we use 0 so Measure -2 (Tick 0) is at the top.
   const baseTickOffset = isPlayingOrExporting ? 0 : TICKS_COUNT_IN;
 
-  // Auto-Scroll Logic - Only touches DOM if NOT exporting (during export we handle scroll mathematically)
   useEffect(() => {
     if (playbackState === PlaybackState.PLAYING && containerRef.current && !isExporting) {
-       // Apply offset to DOM scroll as well to match visual playhead position
-       // Note: We use baseTickOffset here to ensure the math aligns with the shifted rendering
        containerRef.current.scrollTop = (currentTick - PLAYHEAD_OFFSET_TICKS - baseTickOffset) * TICK_HEIGHT;
     } else if (currentTick === TICKS_COUNT_IN && containerRef.current && !isExporting) {
-       // Reset to top when stopped (Tick 24)
        containerRef.current.scrollTop = 0;
     }
   }, [currentTick, playbackState, isExporting, baseTickOffset]);
 
-  // Content height calculation
   const lastNote = data.length > 0 ? data[data.length - 1] : null;
   const maxTick = lastNote ? lastNote.tick + lastNote.duration : 100;
-  // Adjust content height based on whether count-in is visible or not
   const contentHeight = ((maxTick - baseTickOffset) * TICK_HEIGHT) + 300; 
 
-  // Helpers
   const getCanvasCoordinates = (e: MouseEvent | TouchEvent | React.MouseEvent | React.TouchEvent) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
     let clientX, clientY;
-    // Handle both Native and React events
     if ('changedTouches' in e) {
-        // TouchEvent (Native or React)
         clientX = e.changedTouches[0].clientX;
         clientY = e.changedTouches[0].clientY;
     } else if ('touches' in e) {
-        // TouchEvent fallback
-        // Fix TS error: Safe cast since we checked 'touches' in e
         const touchEvent = e as any;
         clientX = touchEvent.touches[0].clientX;
         clientY = touchEvent.touches[0].clientY;
     } else {
-        // MouseEvent
         clientX = (e as MouseEvent).clientX;
         clientY = (e as MouseEvent).clientY;
     }
@@ -147,12 +124,11 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
   const getNotePosition = (note: ParsedNote, width: number, scrollTop: number) => {
       const centerX = width / 2;
       const spacing = getResponsiveSpacing(width);
-      // FIX: Explicitly type 's' to avoid implicit any error
+      // Explicit type for 's' to satisfy strict mode
       const conf = STRING_CONFIGS.find((s: NoteConfig) => s.stringId === note.stringId);
       if (!conf) return null;
       const direction = conf.hand === 'G' ? -1 : 1;
       const x = centerX + (direction * conf.index * spacing);
-      // APPLY OFFSET HERE
       const y = CANVAS_PADDING_TOP + ((note.tick - baseTickOffset) * TICK_HEIGHT) - scrollTop;
       return { x, y };
   };
@@ -163,9 +139,7 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
       for (let i = data.length - 1; i >= 0; i--) {
           const note = data[i];
 
-          // Special Hit Detection for TEXTE
           if (note.stringId === 'TEXTE' && note.message) {
-              // APPLY OFFSET HERE
               const yPos = CANVAS_PADDING_TOP + ((note.tick - baseTickOffset) * TICK_HEIGHT) - scrollTop;
               const estimatedWidth = (note.message.length * 8) + 24;
               const estimatedHeight = 24;
@@ -197,7 +171,7 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
      let closestString = STRING_CONFIGS[0];
      let minDist = Infinity;
 
-     // FIX: Explicitly type 's'
+     // Explicit type for 's'
      STRING_CONFIGS.forEach((s: NoteConfig) => {
          const direction = s.hand === 'G' ? -1 : 1;
          const sx = centerX + (direction * s.index * spacing);
@@ -211,13 +185,10 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
      return null;
   };
 
-  // --- AUTO SCROLL LOOP ---
   const processAutoScroll = (timestamp: number) => {
       if (autoScrollSpeedRef.current !== 0 && containerRef.current) {
           const delta = timestamp - lastFrameTimeRef.current;
           lastFrameTimeRef.current = timestamp;
-          
-          // Scroll based on speed (normalized for ~60fps)
           const scrollAmount = autoScrollSpeedRef.current * (delta / 16);
           containerRef.current.scrollTop += scrollAmount;
       }
@@ -239,7 +210,6 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
       autoScrollSpeedRef.current = 0;
   };
 
-  // --- GLOBAL EVENT LISTENERS (For Dragging outside canvas) ---
   const handleGlobalMove = (e: MouseEvent) => {
       const canvas = canvasRef.current;
       const container = containerRef.current;
@@ -256,7 +226,6 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
       const dy = y - interactionRef.current.startY;
       const dist = Math.abs(dx) + Math.abs(dy);
 
-      // 1. AUTO SCROLL ZONE DETECTION
       if (interactionRef.current.mode === 'BOX_SELECT' || interactionRef.current.mode === 'DRAG_NOTE') {
           const rect = container.getBoundingClientRect();
           const mouseY = e.clientY;
@@ -265,9 +234,9 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
 
           let speed = 0;
           if (mouseY < topThreshold) {
-              speed = -5; // Scroll Up (Reduced speed for better control)
+              speed = -5;
           } else if (mouseY > bottomThreshold) {
-              speed = 5; // Scroll Down (Reduced speed for better control)
+              speed = 5;
           }
 
           if (speed !== 0) {
@@ -275,11 +244,9 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
               startAutoScroll();
           } else {
               autoScrollSpeedRef.current = 0;
-              // Don't stop loop immediately to avoid stutter, loop handles 0 speed gracefully
           }
       }
 
-      // 2. BOX SELECT LOGIC
       if (interactionRef.current.mode === 'POTENTIAL_LEFT_BG') {
           if (dist > 10) {
               interactionRef.current.mode = 'BOX_SELECT';
@@ -287,8 +254,6 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
       }
 
       if (interactionRef.current.mode === 'BOX_SELECT') {
-          // Absolute Document Selection (Scroll-Aware + OFFSET AWARE)
-          // tick = (yAbsolute / HEIGHT) + offset
           const startYAbs = (interactionRef.current.startY + interactionRef.current.startScrollTop - CANVAS_PADDING_TOP);
           const currentYAbs = (y + scrollTop - CANVAS_PADDING_TOP);
           
@@ -310,27 +275,21 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
 
           const newSelectedIds: string[] = [];
           data.forEach(note => {
-              // Check Y (Tick)
               if (note.tick >= minTick && note.tick <= maxTick) {
-                  // Check X (Horizontal Position)
-                  const pos = getNotePosition(note, width, 0); // ScrollTop 0 because we check absolute X on canvas. Offset is inside getNotePosition.
-                  // Wait, getNotePosition subtracts scrollTop. If we pass 0, we get absolute canvas Y relative to "top of canvas DOM".
-                  // However, x coordinate is independent of scroll/tick.
+                  const pos = getNotePosition(note, width, 0); 
                   if (pos && pos.x >= rectX && pos.x <= rectX + rectW) {
                        newSelectedIds.push(note.id);
                   }
               }
           });
           setDragSelectedIds(newSelectedIds);
-          dragSelectedIdsRef.current = newSelectedIds; // Sync Ref
+          dragSelectedIdsRef.current = newSelectedIds;
       }
 
-      // 3. NOTE DRAG LOGIC
       if (interactionRef.current.mode === 'DRAG_NOTE' && interactionRef.current.activeNote) {
            const yAbsolute = y + scrollTop - CANVAS_PADDING_TOP;
            const rawTick = Math.max(0, (yAbsolute / TICK_HEIGHT) + baseTickOffset);
            const snapStep = 1.5; 
-           // RESTRICTION: Ne pas glisser dans la zone de décompte (0-24)
            let snappedTick = Math.round(rawTick / snapStep) * snapStep;
            if (snappedTick < TICKS_COUNT_IN) snappedTick = TICKS_COUNT_IN;
            
@@ -341,7 +300,6 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
   const handleGlobalUp = (e: MouseEvent) => {
       stopAutoScroll();
       
-      // Cleanup Listeners
       window.removeEventListener('mousemove', handleGlobalMove);
       window.removeEventListener('mouseup', handleGlobalUp);
       
@@ -350,15 +308,12 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
       if (!canvas || !container) return;
 
       const { x, y } = getCanvasCoordinates(e);
-      // Determine click type based on distance
       const dist = Math.abs(x - interactionRef.current.startX) + Math.abs(y - interactionRef.current.startY);
 
       const mode = interactionRef.current.mode;
 
       if (mode === 'BOX_SELECT') {
-          // Use Ref because state dragSelectedIds might be stale in this closure
           if (dragSelectedIdsRef.current.length > 0 && onMultiSelectionEnd) {
-              // Pass Client X/Y for Menu Positioning (as menus are Fixed/Absolute to screen)
               onMultiSelectionEnd(dragSelectedIdsRef.current, e.clientX, e.clientY);
           }
           setDragSelectedIds([]);
@@ -376,13 +331,10 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
 
               const targetString = findStringAtX(finalX, canvas.width);
 
-              // Click detection (if dragged very little)
               if (dist < 10) {
                   const note = interactionRef.current.activeNote;
-                  // Just use onNoteClick for simple selection/menu logic
                   if (onNoteClick) onNoteClick(note, e.clientX, e.clientY);
               } else {
-                  // Drag Logic
                   if (interactionRef.current.activeNote.stringId === 'TEXTE') {
                       if (snappedTick !== interactionRef.current.activeNoteOriginalTick) {
                           onNoteDrag(interactionRef.current.activeNote, 'TEXTE', snappedTick);
@@ -394,16 +346,13 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
           }
       }
       else if (mode === 'POTENTIAL_LEFT_BG') {
-          // LEFT CLICK -> SEEK (If no drag)
           const scrollTop = container.scrollTop;
           const yAbsolute = y + scrollTop - CANVAS_PADDING_TOP;
           const rawTick = Math.max(0, (yAbsolute / TICK_HEIGHT) + baseTickOffset);
           const clickTick = Math.round(rawTick / 1.5) * 1.5;
           if (onSeek) onSeek(clickTick);
       }
-      // Right Click is handled in MouseUp locally if it was POTENTIAL_RIGHT_BG
 
-      // Reset
       interactionRef.current = {
           mode: 'IDLE',
           startX: 0, startY: 0, startScrollTop: 0, currentX: 0, currentY: 0,
@@ -415,7 +364,6 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
       hoveredTickRef.current = null;
   };
 
-  // --- LOCAL EVENT HANDLERS (Canvas) ---
   const handleContextMenu = (e: React.MouseEvent) => e.preventDefault();
 
   const handlePointerDown = (e: React.MouseEvent | React.TouchEvent) => {
@@ -423,7 +371,6 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
       const container = containerRef.current;
       if (!canvas || !container) return;
 
-      // Register Global Listeners for robust drag handling
       if (!('touches' in e)) {
           window.addEventListener('mousemove', handleGlobalMove);
           window.addEventListener('mouseup', handleGlobalUp);
@@ -444,7 +391,6 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
 
       if (note) {
           if (isRightClick) {
-              // Right click on note = Context Menu immediately (no drag)
                if(onNoteContextMenu) onNoteContextMenu(note, (e as React.MouseEvent).clientX, (e as React.MouseEvent).clientY);
           } else {
               interactionRef.current = {
@@ -456,12 +402,9 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
               };
           }
       } else {
-          // Background Interaction
           if (isRightClick) {
-              // RIGHT CLICK = INSERT MENU
               interactionRef.current = { ...baseState, mode: 'POTENTIAL_RIGHT_BG' };
           } else {
-              // LEFT CLICK = SEEK (Potential) or BOX SELECT (if dragged)
               interactionRef.current = { ...baseState, mode: 'POTENTIAL_LEFT_BG' };
           }
           setDragSelectedIds([]);
@@ -469,16 +412,11 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
       }
   };
 
-  // Handle Touch Move/End locally (since Mobile drag is different)
-  // For simplicity, we only enabled global listeners for Mouse. Touch stays local for now.
   const handleTouchMove = (e: React.TouchEvent) => {
-       // Re-use global logic but adapt event
-       // Note: Touch auto-scroll is native, usually don't need manual implementation unless preventing default.
        handlePointerMove(e);
   };
   
   const handlePointerMove = (e: React.MouseEvent | React.TouchEvent) => {
-      // Local move logic (mostly for hover effects when IDLE, or Touch)
       const canvas = canvasRef.current;
       const container = containerRef.current;
       if (!canvas || !container) return;
@@ -487,17 +425,10 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
       const scrollTop = container.scrollTop;
       const isTouch = 'touches' in e;
 
-      // TRACK GRID HOVER (Visual Guide)
       if (!isTouch && interactionRef.current.mode === 'IDLE') {
           const yAbsolute = y + scrollTop - CANVAS_PADDING_TOP;
           const rawTick = Math.max(0, (yAbsolute / TICK_HEIGHT) + baseTickOffset);
           const snappedTick = Math.round(rawTick / 1.5) * 1.5;
-          
-          // Even in Edit mode, we don't want to show hover guide in negative space?
-          // Since offset handles coordinates, snappedTick >= 24 (if offset is 24) or >= 0 (if offset is 0)
-          // Actually, rawTick calculation includes offset. 
-          // If editing (offset=24), y=0 -> yAbs=0 -> rawTick = 0/8 + 24 = 24. 
-          // So snappedTick will be >= 24.
           
           if (snappedTick >= TICKS_COUNT_IN) {
               hoveredGridTickRef.current = snappedTick;
@@ -505,7 +436,6 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
               hoveredGridTickRef.current = null;
           }
           
-          // Note Hover
           const note = findNoteAtPosition(x, y, canvas.width, scrollTop);
           if (onNoteHover) {
               onNoteHover(note || null, (e as React.MouseEvent).clientX, (e as React.MouseEvent).clientY);
@@ -516,15 +446,11 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
   };
 
   const handlePointerUp = (e: React.MouseEvent | React.TouchEvent) => {
-      // Local Up (mostly for Touch or simple clicks that didn't trigger global drag)
       const canvas = canvasRef.current;
       const container = containerRef.current;
       if (!canvas || !container) return;
       
-      const isRightClick = !('touches' in e) && ('button' in e && (e as React.MouseEvent).button === 2);
-      
       if (interactionRef.current.mode === 'POTENTIAL_RIGHT_BG') {
-           // Right Click Menu Logic
            const { x, y } = getCanvasCoordinates(e);
            const scrollTop = container.scrollTop;
            const yAbsolute = y + scrollTop - CANVAS_PADDING_TOP;
@@ -554,8 +480,6 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
     let animationId: number;
 
     const render = () => {
-      // Modif: On ne force plus la résolution 1280x720 pendant l'export pour éviter le décalage horizontal.
-      // On utilise toujours la taille du conteneur pour s'aligner avec le StringPad.
       if (containerRef.current) {
         const desiredWidth = containerRef.current.clientWidth;
         const desiredHeight = containerRef.current.clientHeight;
@@ -570,7 +494,6 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
       let scrollTop = 0;
       if (isExporting || playbackState === PlaybackState.PLAYING) {
           const renderTick = playbackState === PlaybackState.PLAYING ? audioEngine.getCurrentTick() : currentTick;
-          // Apply OFFSET to playback scroll as well
           scrollTop = (renderTick - PLAYHEAD_OFFSET_TICKS - baseTickOffset) * TICK_HEIGHT;
       } else {
           scrollTop = containerRef.current ? containerRef.current.scrollTop : 0;
@@ -582,26 +505,19 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
       const gridLeft = centerX - GRID_HALF_WIDTH;
       const gridRight = centerX + GRID_HALF_WIDTH;
 
-      // 1. Background
-      // CLEAR to Transparent first to show global background on sides
       ctx.clearRect(0, 0, width, height);
 
-      // Draw Opaque Rectangle ONLY behind the grid WITH GRADIENT FADE
-      // We calculate exact stops to ensure labels (at -25px) are in the opaque zone
-      const bgFadePx = 30; // Length of the fade gradient
-      const bgMarginPx = 60; // Distance from grid edge to end of background
+      const bgFadePx = 30; 
+      const bgMarginPx = 60; 
       
       const bgLeft = gridLeft - bgMarginPx;
       const bgWidth = (gridRight - gridLeft) + (bgMarginPx * 2);
       
-      // Create Gradient
       const gradient = ctx.createLinearGradient(bgLeft, 0, bgLeft + bgWidth, 0);
       
-      // Calculate fractional stops
       const startSolid = bgFadePx / bgWidth;
       const endSolid = 1 - (bgFadePx / bgWidth);
       
-      // RGB #e5c4a1 = 229, 196, 161
       gradient.addColorStop(0, 'rgba(229, 196, 161, 0)');
       gradient.addColorStop(startSolid, 'rgba(229, 196, 161, 1)');
       gradient.addColorStop(endSolid, 'rgba(229, 196, 161, 1)');
@@ -610,26 +526,20 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
       ctx.fillStyle = gradient;
       ctx.fillRect(bgLeft, 0, bgWidth, height);
       
-      // 2. Highlight Bars (Drag or Hover)
-      // Drag Highlight (Yellow)
       if (interactionRef.current.mode === 'DRAG_NOTE' && hoveredTickRef.current !== null) {
           const y = CANVAS_PADDING_TOP + ((hoveredTickRef.current - baseTickOffset) * TICK_HEIGHT) - scrollY;
           ctx.fillStyle = 'rgba(255, 215, 0, 0.3)'; 
           ctx.fillRect(gridLeft, y - TICK_HEIGHT/2, gridRight - gridLeft, TICK_HEIGHT);
       }
-      // Grid Hover Highlight (Grey)
       else if (hoveredGridTickRef.current !== null) {
           const y = CANVAS_PADDING_TOP + ((hoveredGridTickRef.current - baseTickOffset) * TICK_HEIGHT) - scrollY;
-          // MODIF: Couleur Noire (Black) au lieu de gris transparent
           ctx.fillStyle = '#000000'; 
           ctx.fillRect(gridLeft, y - 1, gridRight - gridLeft, 2);
       }
 
-      // 3. Grid Lines
       const visibleHeight = height;
-      // Start Tick Calculation must include offset
-      const startTickRel = Math.floor((scrollY - CANVAS_PADDING_TOP) / TICK_HEIGHT); // Ticks relative to top of viewport
-      const startTick = startTickRel + baseTickOffset; // Absolute ticks
+      const startTickRel = Math.floor((scrollY - CANVAS_PADDING_TOP) / TICK_HEIGHT); 
+      const startTick = startTickRel + baseTickOffset; 
       
       const endTick = startTick + Math.ceil(visibleHeight / TICK_HEIGHT) + 20;
       const beatStart = Math.floor(startTick / 12) * 12;
@@ -642,12 +552,10 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
       ctx.textBaseline = 'middle';
       
       for (let t = beatStart; t <= beatEnd; t += 12) {
-           // Apply OFFSET here
            const y = CANVAS_PADDING_TOP + ((t - baseTickOffset) * TICK_HEIGHT) - scrollY;
            
            if (y >= -10 && y <= height + 10) {
                ctx.beginPath(); ctx.moveTo(gridLeft, y); ctx.lineTo(gridRight, y);
-               // MODIFICATION: Ligne de temps principale en marron (#5d4037) au lieu de noir
                ctx.strokeStyle = '#5d4037'; ctx.lineWidth = 1.5; ctx.stroke();
                
                let label = "";
@@ -656,7 +564,6 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
                    const beatInMeasure = (Math.floor((t - TICKS_COUNT_IN) / 12) % beatsPerMeasure) + 1;
                    label = `${beatInMeasure}`;
                    
-                   // Ensure font is reset for main labels
                    ctx.font = '10px sans-serif'; 
                    
                    if (beatInMeasure === 1) {
@@ -668,46 +575,38 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
                }
            }
            
-           // MODIFICATION de la fonction de dessin des sous-lignes pour respecter les nouvelles règles
            const drawSubLine = (offset: number, type: 'half' | 'quarter' | 'eighth', label: string) => {
                const ty = y + (offset * TICK_HEIGHT);
                if (ty < -10 || ty > height + 10) return;
                ctx.beginPath(); ctx.moveTo(gridLeft, ty); ctx.lineTo(gridRight, ty);
                
-               // Couleur commune (Marron clair)
                ctx.strokeStyle = '#8d6e63';
                ctx.lineWidth = 1;
 
                if (type === 'half') {
-                   // 1/2 : Trait plein (pas de dash)
                    ctx.setLineDash([]);
                } else if (type === 'quarter') {
-                   // 1/4 : Pointillés ESPACÉS [1, 6]
                    ctx.setLineDash([1, 6]);
                } else if (type === 'eighth') {
-                   // 1/8 : Pointillés SERRÉS [1, 2]
                    ctx.setLineDash([1, 2]);
                }
 
                ctx.stroke(); ctx.setLineDash([]);
                
-               // RESTORED LABELS per user request
                if(label && t >= TICKS_COUNT_IN) { 
                    ctx.fillStyle = '#5d4037'; 
                    ctx.textAlign = 'right';
-                   ctx.font = '9px sans-serif'; // Slightly smaller for subdivisions
+                   ctx.font = '9px sans-serif'; 
                    ctx.fillText(label, gridLeft - 10, ty); 
                }
            }
            
-           // Appels mis à jour avec les nouveaux types sémantiques
            drawSubLine(6, 'half', "1/2");
            drawSubLine(3, 'quarter', "1/4"); drawSubLine(9, 'quarter', "1/4");
            drawSubLine(1.5, 'eighth', "1/8"); drawSubLine(4.5, 'eighth', "1/8"); drawSubLine(7.5, 'eighth', "1/8"); drawSubLine(10.5, 'eighth', "1/8");
       }
 
-      // 4. Strings
-      // FIX: Explicit typing for s to avoid implicit any
+      // Explicit type for 's'
       STRING_CONFIGS.forEach((s: NoteConfig) => {
           const direction = s.hand === 'G' ? -1 : 1;
           const x = centerX + (direction * s.index * STRING_SPACING);
@@ -716,20 +615,13 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
           ctx.beginPath(); ctx.strokeStyle = noteColor; ctx.lineWidth = 2;
           ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
       });
-      // MODIFICATION: Barre verticale centrale en marron opaque
       ctx.beginPath(); ctx.strokeStyle = '#5d4037'; ctx.lineWidth = 2;
       ctx.moveTo(centerX, 0); ctx.lineTo(centerX, height); ctx.stroke();
 
-      // MASK: Count-In Zone Logic REMOVED.
-      // We rely on baseTickOffset to effectively "scroll" it out of view.
-      // If baseTickOffset == 24, Tick 0-24 is Y < 0 (invisible).
-
-      // 5. Notes
       data.forEach(note => {
           if (note.tick < startTick - 5 || note.tick > endTick + 5) return;
           
           if (note.stringId === 'TEXTE' && note.message) {
-              // Apply OFFSET
               const y = CANVAS_PADDING_TOP + ((note.tick - baseTickOffset) * TICK_HEIGHT) - scrollY;
               
               ctx.save(); ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
@@ -780,12 +672,11 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
               isBeingDragged = true;
           }
 
-          // FIX: Explicit type for s
+          // Explicit type for 's'
           const conf = STRING_CONFIGS.find((s: NoteConfig) => s.stringId === displayStringId);
           if (!conf) return;
           const direction = conf.hand === 'G' ? -1 : 1;
           const x = centerX + (direction * conf.index * STRING_SPACING);
-          // Apply OFFSET
           const y = CANVAS_PADDING_TOP + ((displayTick - baseTickOffset) * TICK_HEIGHT) - scrollY;
 
           if (isBeingDragged) {
@@ -831,11 +722,9 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
           }
       });
 
-      // 6. Selection Box (Drawing relative to screen)
       if (interactionRef.current.mode === 'BOX_SELECT' && interactionRef.current.selectionRect) {
           const { startTick, endTick, startX, endX } = interactionRef.current.selectionRect;
           
-          // Convert absolute ticks back to screen Y coordinates for drawing
           const y1 = CANVAS_PADDING_TOP + ((startTick - baseTickOffset) * TICK_HEIGHT) - scrollY;
           const y2 = CANVAS_PADDING_TOP + ((endTick - baseTickOffset) * TICK_HEIGHT) - scrollY;
           const rectX = startX;
@@ -852,11 +741,9 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
           ctx.restore();
       }
 
-      // 7. Cursor (Yellow Bar)
       let renderTick = currentTick;
       if (playbackState === PlaybackState.PLAYING) renderTick = audioEngine.getCurrentTick();
       
-      // Apply OFFSET
       const cursorY = CANVAS_PADDING_TOP + ((renderTick - baseTickOffset) * TICK_HEIGHT) - scrollY;
       
       if (cursorY >= -10 && cursorY <= height + 10) {

@@ -4,7 +4,7 @@ import { BASE_TUNING, ASSETS_BASE_URL } from '../constants';
 // @ts-ignore
 import * as lamejs from 'lamejs';
 
-// Helper for WAV encoding (Still kept as fallback/utility)
+// Helper for WAV encoding
 function bufferToWave(abuffer: AudioBuffer, len: number) {
   let numOfChan = abuffer.numberOfChannels,
       length = len * numOfChan * 2 + 44,
@@ -26,7 +26,7 @@ function bufferToWave(abuffer: AudioBuffer, len: number) {
   setUint32(abuffer.sampleRate);
   setUint32(abuffer.sampleRate * 2 * numOfChan); // avg. bytes/sec
   setUint16(numOfChan * 2);                      // block-align
-  setUint16(16);                                 // 16-bit (hardcoded in this parser)
+  setUint16(16);                                 // 16-bit
 
   setUint32(0x61746164);                         // "data" - chunk
   setUint32(length - pos - 4);                   // chunk length
@@ -81,32 +81,25 @@ class AudioEngine {
   private stringBuffers: Record<string, AudioBuffer> = {};
   private samplesLoaded = false;
   
-  // Destination node for MediaRecorder (Stream)
   private dest: MediaStreamAudioDestinationNode | null = null;
-
-  // Source node for playing back pre-rendered audio (Video Export)
   private prerenderedSource: AudioBufferSourceNode | null = null;
 
   constructor() {}
 
   public init() {
     if (!this.ctx) {
-      // OPTIMIZATION: 'latencyHint: playback' tells the browser to prioritize 
-      // smooth audio over low latency, using larger buffers to prevent stuttering.
       this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)({
         latencyHint: 'playback'
       });
       this.dest = this.ctx.createMediaStreamDestination();
       this.shakerBuffer = this.createNoiseBuffer(this.ctx);
       
-      // FIX: Keep-Alive Oscillator
-      // Creates an inaudible signal to keep the MediaStream track active
-      // This prevents browsers from dropping the audio track if the recording starts with silence
+      // Keep-Alive Oscillator
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
       osc.type = 'sine';
-      osc.frequency.value = 100; // Low frequency
-      gain.gain.value = 0.000001; // Effectively silent
+      osc.frequency.value = 100;
+      gain.gain.value = 0.000001; 
       osc.connect(gain);
       gain.connect(this.dest);
       osc.start();
@@ -147,10 +140,11 @@ class AudioEngine {
 
   public async loadSamples() {
      if (!this.ctx) return;
-     // FIX: Explicitly cast values to string[] to avoid 'unknown' type error in build
-     const uniqueNotes = Array.from(new Set(Object.values(this.currentTuning) as string[]));
+     // FIX: Explicit typing as string[] to satisfy TS compiler
+     const tuningValues = Object.values(this.currentTuning) as string[];
+     const uniqueNotes = Array.from(new Set(tuningValues));
      
-     const loadPromises = uniqueNotes.map(async (note) => {
+     const loadPromises = uniqueNotes.map(async (note: string) => {
         if (this.stringBuffers[note]) return;
         try {
             const url = `${ASSETS_BASE_URL}samples/${encodeURIComponent(note)}.mp3`;
@@ -229,11 +223,7 @@ class AudioEngine {
     const effectiveBpm = this.bpm * this.playbackSpeed;
     const secondsPerTick = (60 / effectiveBpm) / 12;
 
-    // FIX: Remove negative offset when startTick is 0. 
-    // This allows exact visual sync with the "yellow cursor" starting at 0.
     const effectiveStartTick = startTick;
-    
-    // 0.1s buffer to ensure the first note isn't missed by the scheduler if it's immediate
     this.startTime = this.ctx.currentTime - (effectiveStartTick * secondsPerTick) + 0.1; 
 
     this.nextNoteIndex = this.notes.findIndex(n => n.tick >= effectiveStartTick);
@@ -260,7 +250,6 @@ class AudioEngine {
         cancelAnimationFrame(this.animationFrameId);
         this.animationFrameId = null;
     }
-    // Stop pre-rendered playback if active
     if (this.prerenderedSource) {
         try { this.prerenderedSource.stop(); } catch(e) {}
         this.prerenderedSource = null;
@@ -270,7 +259,6 @@ class AudioEngine {
   private schedule = () => {
     if (!this.isPlaying || !this.ctx) return;
 
-    // Increased buffer/lookahead to prevent audio glitches
     const lookahead = 100.0; 
     const scheduleAheadTime = 0.4;
     
@@ -326,9 +314,6 @@ class AudioEngine {
     if (!this.isPlaying || !this.ctx) return;
     const effectiveBpm = this.bpm * this.playbackSpeed;
     const secondsPerTick = (60 / effectiveBpm) / 12;
-    // Calculate tick from currentTime vs startTime
-    // This works for both real-time scheduling AND pre-rendered playback
-    // because playPrerendered sets startTime to (currentTime - startOffset)
     const currentTick = (this.ctx.currentTime - this.startTime) / secondsPerTick;
     
     if (this.onTickCallback) this.onTickCallback(currentTick);
@@ -352,8 +337,6 @@ class AudioEngine {
     source.connect(gain);
     gain.connect(dest);
     
-    // Also connect to recorder dest if available (for real-time recording)
-    // BUT only if we are in real-time mode (not pre-rendered playback)
     if (this.dest && ctx === this.ctx && !this.prerenderedSource) {
         gain.connect(this.dest);
     }
@@ -361,9 +344,6 @@ class AudioEngine {
     source.start(time);
   }
 
-  /**
-   * Joue le son d'une corde immédiatement (Preview)
-   */
   public async previewString(stringId: string) {
       this.init();
       if (this.ctx && this.ctx.state === 'suspended') {
@@ -373,7 +353,6 @@ class AudioEngine {
       const noteName = this.currentTuning[stringId];
       if (!noteName) return;
       
-      // Ensure specific sample is loaded if not already (optimistic)
       if (!this.stringBuffers[noteName]) {
           await this.loadSamples();
       }
@@ -390,29 +369,19 @@ class AudioEngine {
       }
   }
 
-  /**
-   * Internal method to render audio to a buffer using OfflineAudioContext.
-   */
   public async renderProjectToBuffer(): Promise<AudioBuffer | null> {
     if (this.notes.length === 0) return null;
     await this.loadSamples();
 
-    // 1. Calculate duration based on playback speed (Slow Motion support)
     const lastNote = this.notes[this.notes.length - 1];
-    
-    // Apply speed factor: lower speed = longer duration
     const effectiveBpm = this.bpm * this.playbackSpeed; 
     
     const secondsPerTick = (60 / effectiveBpm) / 12;
-    const duration = (lastNote.tick * secondsPerTick) + 3.0; // +3s tail
+    const duration = (lastNote.tick * secondsPerTick) + 3.0; 
 
-    // 2. Create Offline Context
-    // FIX: Match sample rate with the main context to avoid resampling issues during playback
-    // If ctx is not initialized, use 44100 as fallback
     const sampleRate = this.ctx ? this.ctx.sampleRate : 44100;
     const offlineCtx = new OfflineAudioContext(2, sampleRate * duration, sampleRate);
     
-    // 3. Render Notes
     this.notes.forEach(note => {
         const noteTime = note.tick * secondsPerTick;
         const noteName = this.currentTuning[note.stringId];
@@ -427,17 +396,10 @@ class AudioEngine {
         }
     });
 
-    // 4. Render
     const renderedBuffer = await offlineCtx.startRendering();
     return renderedBuffer;
   }
 
-  /**
-   * Plays a pre-rendered buffer to the main destination AND the recorder stream.
-   * This is used for video export to ensure perfect sync and no stutter.
-   * @param buffer The pre-rendered audio buffer
-   * @param monitor If true, plays to speakers. If false, plays ONLY to the recorder stream (for silence/performance).
-   */
   public playPrerendered(buffer: AudioBuffer, monitor: boolean = true) {
       this.init();
       if (!this.ctx || !this.dest) return;
@@ -445,25 +407,19 @@ class AudioEngine {
 
       this.isPlaying = true;
       
-      // Setup Source
       const source = this.ctx.createBufferSource();
       source.buffer = buffer;
       this.prerenderedSource = source;
 
-      // Connect to speakers (monitor) if requested
       if (monitor) {
           source.connect(this.ctx.destination);
       }
       
-      // ALWAYS Connect to recorder (capture)
       source.connect(this.dest);
 
-      // Sync math setup
-      // CRITICAL: Must use effective BPM matching the rendered buffer (Speed)
       const effectiveBpm = this.bpm * this.playbackSpeed; 
       const secondsPerTick = (60 / effectiveBpm) / 12;
       
-      // Start 'now'
       this.startTime = this.ctx.currentTime;
       
       source.onended = () => {
@@ -472,17 +428,10 @@ class AudioEngine {
       };
 
       source.start();
-      
-      // Start UI loop to update visualizer
       this.updateTickUI(); 
   }
 
   public async exportWav(): Promise<Blob | null> {
-      // Audio export usually ignores visual playback speed unless explicitly requested.
-      // For now, we keep audio export at 1.0x (standard tempo) to just export the song.
-      // If needed, we could inject this.playbackSpeed here too.
-      // Temporarily resetting speed for audio-only export to ensure standard pitch/speed? 
-      // User request implies video slow motion. Let's assume audio export is standard.
       const savedSpeed = this.playbackSpeed;
       this.playbackSpeed = 1.0; 
       const buffer = await this.renderProjectToBuffer();
@@ -493,7 +442,6 @@ class AudioEngine {
   }
 
   public async exportMp3(): Promise<Blob | null> {
-      // Standard MP3 export at 1.0x speed
       const savedSpeed = this.playbackSpeed;
       this.playbackSpeed = 1.0;
       const buffer = await this.renderProjectToBuffer();
@@ -503,19 +451,17 @@ class AudioEngine {
 
       const channels = buffer.numberOfChannels;
       const sampleRate = buffer.sampleRate;
-      const mp3encoder = new lamejs.Mp3Encoder(channels, sampleRate, 320); // 320kbps
+      const mp3encoder = new lamejs.Mp3Encoder(channels, sampleRate, 320);
 
       const left = buffer.getChannelData(0);
-      const right = channels > 1 ? buffer.getChannelData(1) : left; // Fallback for mono
+      const right = channels > 1 ? buffer.getChannelData(1) : left;
 
       const sampleBlockSize = 1152;
       const mp3Data = [];
 
-      // Create Int16 arrays for lamejs
       const samplesLeft = new Int16Array(left.length);
       const samplesRight = new Int16Array(right.length);
 
-      // Convert Float32 to Int16
       for (let i = 0; i < left.length; i++) {
         let valLeft = Math.max(-1, Math.min(1, left[i]));
         samplesLeft[i] = valLeft < 0 ? valLeft * 0x8000 : valLeft * 0x7FFF;
@@ -524,7 +470,6 @@ class AudioEngine {
         samplesRight[i] = valRight < 0 ? valRight * 0x8000 : valRight * 0x7FFF;
       }
 
-      // Encode in blocks
       for (let i = 0; i < samplesLeft.length; i += sampleBlockSize) {
         const leftChunk = samplesLeft.subarray(i, i + sampleBlockSize);
         const rightChunk = samplesRight.subarray(i, i + sampleBlockSize);
