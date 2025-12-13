@@ -124,7 +124,7 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
   const getNotePosition = (note: ParsedNote, width: number, scrollTop: number) => {
       const centerX = width / 2;
       const spacing = getResponsiveSpacing(width);
-      // Explicit type for 's' to satisfy strict mode
+      // Explicit type annotation for s
       const conf = STRING_CONFIGS.find((s: NoteConfig) => s.stringId === note.stringId);
       if (!conf) return null;
       const direction = conf.hand === 'G' ? -1 : 1;
@@ -171,7 +171,7 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
      let closestString = STRING_CONFIGS[0];
      let minDist = Infinity;
 
-     // Explicit type for 's'
+     // Explicit type annotation for s
      STRING_CONFIGS.forEach((s: NoteConfig) => {
          const direction = s.hand === 'G' ? -1 : 1;
          const sx = centerX + (direction * s.index * spacing);
@@ -606,7 +606,7 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
            drawSubLine(1.5, 'eighth', "1/8"); drawSubLine(4.5, 'eighth', "1/8"); drawSubLine(7.5, 'eighth', "1/8"); drawSubLine(10.5, 'eighth', "1/8");
       }
 
-      // Explicit type for 's'
+      // Explicit type annotation for s
       STRING_CONFIGS.forEach((s: NoteConfig) => {
           const direction = s.hand === 'G' ? -1 : 1;
           const x = centerX + (direction * s.index * STRING_SPACING);
@@ -672,7 +672,7 @@ const Visualizer = forwardRef<VisualizerHandle, VisualizerProps>(({
               isBeingDragged = true;
           }
 
-          // Explicit type for 's'
+          // Explicit type annotation for s
           const conf = STRING_CONFIGS.find((s: NoteConfig) => s.stringId === displayStringId);
           if (!conf) return;
           const direction = conf.hand === 'G' ? -1 : 1;

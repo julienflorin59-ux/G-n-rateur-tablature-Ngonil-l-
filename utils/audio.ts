@@ -140,23 +140,26 @@ class AudioEngine {
 
   public async loadSamples() {
      if (!this.ctx) return;
-     // FIX: Explicit typing as string[] to satisfy TS compiler
-     const tuningValues = Object.values(this.currentTuning) as string[];
-     const uniqueNotes = Array.from(new Set(tuningValues));
+     
+     // Explicitly typing note as string to avoid TS2345/TS2538
+     const rawValues = Object.values(this.currentTuning);
+     const uniqueNotes: string[] = Array.from(new Set(rawValues));
      
      const loadPromises = uniqueNotes.map(async (note: string) => {
-        if (this.stringBuffers[note]) return;
+        // Casting note to string for index access safety
+        const noteKey = note as string;
+        if (this.stringBuffers[noteKey]) return;
         try {
-            const url = `${ASSETS_BASE_URL}samples/${encodeURIComponent(note)}.mp3`;
+            const url = `${ASSETS_BASE_URL}samples/${encodeURIComponent(noteKey)}.mp3`;
             const response = await fetch(url);
             if (!response.ok) throw new Error(`Fichier introuvable sur ${url}`);
             const arrayBuffer = await response.arrayBuffer();
             const audioBuffer = await this.ctx!.decodeAudioData(arrayBuffer);
-            this.stringBuffers[note] = audioBuffer;
+            this.stringBuffers[noteKey] = audioBuffer;
         } catch (e) {
-            console.warn(`Sample manquant pour ${note}.`, e);
+            console.warn(`Sample manquant pour ${noteKey}.`, e);
             if (this.ctx) {
-                this.stringBuffers[note] = this.generateFallbackBuffer(this.ctx, this.getNoteFreq(note));
+                this.stringBuffers[noteKey] = this.generateFallbackBuffer(this.ctx, this.getNoteFreq(noteKey));
             }
         }
      });
@@ -324,7 +327,9 @@ class AudioEngine {
     if (time < ctx.currentTime - 0.05) return;
     const noteName = this.currentTuning[note.stringId];
     if (!noteName) return; 
-    const buffer = this.stringBuffers[noteName];
+    
+    // Explicit string cast
+    const buffer = this.stringBuffers[noteName as string];
     if (!buffer) return;
 
     const source = ctx.createBufferSource();
@@ -353,11 +358,12 @@ class AudioEngine {
       const noteName = this.currentTuning[stringId];
       if (!noteName) return;
       
-      if (!this.stringBuffers[noteName]) {
+      // Cast for safety
+      if (!this.stringBuffers[noteName as string]) {
           await this.loadSamples();
       }
 
-      const buffer = this.stringBuffers[noteName];
+      const buffer = this.stringBuffers[noteName as string];
       if (buffer && this.ctx) {
           const source = this.ctx.createBufferSource();
           source.buffer = buffer;
@@ -385,9 +391,10 @@ class AudioEngine {
     this.notes.forEach(note => {
         const noteTime = note.tick * secondsPerTick;
         const noteName = this.currentTuning[note.stringId];
-        if (noteName && this.stringBuffers[noteName]) {
+        // Safe check with cast
+        if (noteName && this.stringBuffers[noteName as string]) {
            const source = offlineCtx.createBufferSource();
-           source.buffer = this.stringBuffers[noteName];
+           source.buffer = this.stringBuffers[noteName as string];
            const gain = offlineCtx.createGain();
            gain.gain.value = 0.4;
            source.connect(gain);

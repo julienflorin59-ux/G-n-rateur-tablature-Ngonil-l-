@@ -52,7 +52,7 @@ export const generatePDF = (code: string, title: string = "Tablature Ngonilélé
         // Dessiner les en-têtes de cordes (Cercles colorés)
         const headerY = cursorY;
         
-        // Explicit type for 's'
+        // Explicit type annotation for s
         STRING_CONFIGS.forEach((s: NoteConfig) => {
             const direction = s.hand === 'G' ? -1 : 1;
             const x = CENTER_X + (direction * s.index * STRING_SPACING);
@@ -193,7 +193,7 @@ export const generatePDF = (code: string, title: string = "Tablature Ngonilélé
                 return;
             }
 
-            // Explicit type for 's'
+            // Explicit type annotation for s
             const conf = STRING_CONFIGS.find((s: NoteConfig) => s.stringId === n.stringId);
             if (conf) {
                 const direction = conf.hand === 'G' ? -1 : 1;

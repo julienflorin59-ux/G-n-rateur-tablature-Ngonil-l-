@@ -1,5 +1,5 @@
 {
-  "name": "Ngonilélé Générateur de Tablature Bêta 1.5.2",
+  "name": "Ngonilélé Générateur de Tablature Bêta 1.5.3",
   "description": "A web-based tablature editor, visualizer, and player for the Ngonilélé instrument, ported from Python.",
   "requestFramePermissions": [
     "microphone"
